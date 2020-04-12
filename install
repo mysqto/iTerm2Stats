@@ -1,0 +1,165 @@
+#!/usr/bin/env bash
+
+red=$(tput setaf 1)
+green=$(tput setaf 2)
+reset=$(tput sgr0)
+
+function echo_info() {
+  echo "${green}$*${reset}"
+}
+
+function echo_warn() {
+  echo "${red}$*${reset}"
+}
+
+function trim() {
+  echo -e "$1" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'
+}
+
+function download_install_zip() {
+  url=$(trim "$1")
+  app=$(trim "$2")
+  dest=$(trim "$3")
+  app_temp="/tmp/$app.zip"
+  [[ -z "$dest" ]] && dest="/Applications"
+  rm -rf "$app_temp"
+  download "$url" "$app_temp"
+  _unzip "$app_temp" "$dest"
+}
+
+function download() {
+  url=$1
+  target=$2
+  if [ ! -e "$target" ]; then
+    echo "downloading $target package from $url"
+    curl --progress-bar -Lo "$target" "$url"
+  fi
+}
+
+function _unzip() {
+  zipball=$1
+  target=$2
+
+  if [ ! -e "$zipball" ]; then
+    echo "$zipball not exist"
+    return 255
+  fi
+
+  if [ ! -e "$target" ]; then
+    echo "$target not exist, creating directory..."
+    mkdir -p "$target"
+  fi
+
+  unzip -o "$zipball" -d "$target"
+}
+
+function _realpath() {
+  target=$1
+
+  dir=$(dirname "$target")
+  cd "$dir" || exit 255
+  target=$(basename "$target")
+
+  # Iterate down a (possible) chain of symlinks
+  while [ -L "$target" ]; do
+    target=$(readlink "$target")
+    dir=$(dirname "$target")
+    cd "$dir" || exit 255
+    target=$(basename "$target")
+  done
+
+  # Compute the canonicalized name by finding the physical path
+  # for the directory we're in and appending the target file.
+  realdir=$(pwd -P)
+  result="$realdir/$target"
+  echo "$result"
+}
+
+function _symlink() {
+
+  source_file=$(_realpath "$1")
+  sym_file=$2
+
+  [ -L "$sym_file" ] && oldlink=$(_realpath "$sym_file") &&
+    echo_warn "removing old link $sym_file -> $oldlink" && rm -f "$sym_file"
+
+  if [ -d "$sym_file" ]; then
+    sym_file=$sym_file/$(basename "$source_file")
+  fi
+
+  target_directory=$(dirname "$sym_file")
+
+  if [ ! -d "$target_directory" ]; then
+    echo_info "creating $target_directory..." && mkdir -p "$target_directory"
+  fi
+
+  [ -L "$sym_file" ] && oldlink=$(_realpath "$sym_file") &&
+    echo_warn "removing old link $sym_file -> $oldlink" && rm -f "$sym_file"
+
+  [ -f "$sym_file" ] && echo "$sym_file already exists, delete it" && rm -f "$sym_file"
+
+  ln -s "$source_file" "$sym_file"
+  echo_info "symbolic link created $source_file -> $sym_file"
+}
+
+beta=""
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+  -b | --beta)
+    beta="beta"
+    shift 1
+    ;;
+  *)
+    POSITIONAL+=("$1")
+    shift
+    ;;
+  esac
+done
+
+iterm2_config_dir="$HOME/Library/ApplicationSupport/iTerm2"
+iterm2env_feed="https://iterm2.com/downloads/pyenv/${beta}manifest.json"
+iterm2env="$iterm2_config_dir/iterm2env"
+script_target="$iterm2_config_dir/Scripts/AutoLaunch"
+_self=$(_realpath "$0")
+script_dir=$(dirname "$_self")
+
+[[ ! -d "$iterm2_config_dir" ]] && echo_info "creating iTerm2 configuration directory" && mkdir -p "$iterm2_config_dir"
+
+iterm2env_installed_version=$(head -n1 "$iterm2env/iterm2env-metadata.json" 2>/dev/null | cut -d'"' -f4)
+iterm2env_url=$(curl -s "$iterm2env_feed" | grep -Eo "https://.*.zip" | head -n1)
+iterm2env_remote_version=$(curl -s "$iterm2env_feed" | grep '"version"' | head -n1 | cut -d'"' -f4)
+
+if [ "$iterm2env_installed_version" != "$iterm2env_remote_version" ]; then
+  echo_info "cleaning currently installed iterm2 env" && rm -rf "$iterm2env"
+  download_install_zip "$iterm2env_url" "iterm2env" "$iterm2_config_dir"
+fi
+
+for version in "$iterm2env"/versions/*; do
+  for file in "$version"/bin/*; do
+    type=$(file "$file" | cut -d ':' -f2- | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' | tr '[:upper:]' '[:lower:]')
+
+    case $type in
+    *python*)
+      if grep -q "__ITERM2_ENV__" "$file"; then
+        echo_info "updating __ITERM2_ENV__ to $iterm2env in python script $file"
+        sed -i '' -e "s#__ITERM2_ENV__#$iterm2env#g" "$file"
+      fi
+      ;;
+    *)
+      echo_warn "skipping non-python script file $file"
+      ;;
+    esac
+  done
+  "$version/bin/pip" install -r "$script_dir/requirements.txt"
+done
+
+[[ ! -d "$script_target" ]] && echo_info "creating script directory: $script_target" && mkdir -p "$script_target"
+
+for file in "$script_dir"/Scripts/AutoLaunch/*.py; do
+  _symlink "$file" "$script_target"
+done
+
+while read -r line; do
+  [[ -z "$line" ]] || brew install "$line"
+done <"$script_dir/brewlist.txt"
