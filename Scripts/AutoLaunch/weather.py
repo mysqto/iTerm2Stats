@@ -6,10 +6,12 @@ import urllib.request
 import iterm2
 
 # The URL to request
-URL = 'https://wttr.in/{}?m&format=%c+%t+%w+%h'
+CURRENT_URL = 'https://wttr.in/{}?m&format=%c+%t+%w+%h'
+FORECAST_URL = 'https://wttr.in/{}?3&A&F&n&T&Q'
 
 # The name of the iTerm2 variable to store the result
-WEATHER_VARIABLE = "weather"
+CURRENT_VARIABLE = "current_weather"
+FORECAST_VARIABLE = "forecast_weather"
 CITY_VARIABLE = "user.weather_city"
 UPDATE_VARIABLE_VARIABLE = "user.weather_update_interval"
 
@@ -31,15 +33,22 @@ ICON2X = "iVBORw0KGgoAAAANSUhEUgAAACAAAAAiCAYAAAA+stv/AAAABGdBTUEAALGPC/xhBQAAAW
          "Ok/+Gf0MQKMulqv7Qpwm6+awd/XXAAAAABJRU5ErkJggg=="
 
 
-async def get_weather(location=None):
+async def get_weather(url, location=None):
     try:
-        with urllib.request.urlopen(URL.format(location)) as response:
-            return response.read().decode("utf-8").strip()
+        req = urllib.request.Request(
+            url.format(location),
+            data=None,
+            headers={
+                'User-Agent': 'curl/7.64.1'
+            }
+        )
+        with urllib.request.urlopen(req) as response:
+            return response.read().decode("utf-8")
     except (urllib.error.HTTPError, urllib.error.URLError, TypeError):
         return None
 
 
-async def updater(app):
+async def updater(app, type='current'):
     """A background tasks that reloads URL every UPDATE_INTERVAL seconds and
     sets the app-scope 'user.{WEATHER_VARIABLE}' variable."""
     while True:
@@ -50,19 +59,34 @@ async def updater(app):
             await asyncio.sleep(1)
             continue
 
-        weather = await get_weather(city)
+        weather_url = CURRENT_URL
+        variable_key = CURRENT_VARIABLE
+
+        if type == 'forecast':
+            weather_url = FORECAST_URL
+            variable_key = FORECAST_VARIABLE
+
+        weather = await get_weather(weather_url, city)
+        print(weather)
 
         if weather:
-            await app.async_set_variable("user." + WEATHER_VARIABLE, weather)
+            if type == 'current':
+                weather = weather.strip()
+            await app.async_set_variable("user." + variable_key, weather)
             await asyncio.sleep(update_interval)
         else:
-            await asyncio.sleep(5)
+            await asyncio.sleep(1)
 
+async def format_weather(app):
+    text = await app.async_get_variable("user." + FORECAST_VARIABLE)
+    style = "<style>pre {font-family: Menlo,monospace; font-size: 12}</style>"
+    return style + '<pre>' + text + '</pre>' if text is not None else None
 
 async def main(connection):
     app = await iterm2.async_get_app(connection)
     # Start fetching the URL
-    asyncio.create_task(updater(app))
+    asyncio.create_task(updater(app, type='current'))
+    asyncio.create_task(updater(app, type='forecast'))
 
     location_knob = "weather_location"
     update_interval_knob = "weather_update_interval"
@@ -82,7 +106,7 @@ async def main(connection):
         identifier="catj.moe.weather")
 
     @iterm2.StatusBarRPC
-    async def weather(knobs, value=iterm2.Reference("iterm2.user." + WEATHER_VARIABLE + "?")):
+    async def weather(knobs, value=iterm2.Reference("iterm2.user." + CURRENT_VARIABLE + "?")):
         """This function returns the value to show in a status bar."""
         global city
         global update_interval
@@ -97,12 +121,10 @@ async def main(connection):
 
     @iterm2.RPC
     async def onclick(session_id):
-        proc = await asyncio.create_subprocess_shell(
-            f'open https://wttr.in/{city}',
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        stdout, stderr = await proc.communicate()
+        session = app.get_session_by_id(session_id)
+        forecast_weather = await format_weather(app)
+        if forecast_weather is not None:
+            await component.async_open_popover(session_id, forecast_weather, iterm2.util.Size(480, 520))
 
     # Register the component.
     await component.async_register(connection, weather, onclick=onclick)

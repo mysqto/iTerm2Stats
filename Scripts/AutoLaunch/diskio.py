@@ -24,7 +24,7 @@ ICON2X = "iVBORw0KGgoAAAANSUhEUgAAAB4AAAAeCAYAAAA7MK6iAAAABmJLR0QA/wD/AP+gvaeTAA
 
 # borrow from psutil iostats
 def readable_bytes(n, format="%(value).1f%(symbol)s"):
-    symbols = ('B/s', 'KiB/s', 'MiB/s', 'GiB/s', 'TiB/s', 'PiB/s', 'EiB/s', 'ZiB/s', 'YiB/s')
+    symbols = ('B/s', 'KB/s', 'MB/s', 'GB/s', 'TB/s', 'PB/s', 'EB/s', 'ZB/s', 'YB/s')
     prefix = {}
     for i, s in enumerate(symbols[1:]):
         prefix[s] = 1 << (i + 1) * 10
@@ -51,7 +51,7 @@ async def get_disk_io(interval):
         write_speed = (write - last_write) / interval
         last_read = read
         last_write = write
-        return "🆁️{:<10} 🆆️{:<10}".format(readable_bytes(read_speed), readable_bytes(write_speed))
+        return "🆁️{:<9} 🆆️{:<9}".format(readable_bytes(read_speed), readable_bytes(write_speed))
 
 
 async def poll(app):
@@ -80,7 +80,7 @@ async def main(connection):
         short_description="Disk IO",
         detailed_description="Shows your overall disk read/write speed",
         knobs=[],
-        exemplar="🆁1.2MB/s 🆆️10.5MiB/",
+        exemplar="🆁1.2MB/s 🆆️10.5MB/",
         update_cadence=None,
         identifier="catj.moe.disk_io",
         icons=[icon1x, icon2x])

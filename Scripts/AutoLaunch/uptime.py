@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
-import re
-import subprocess
+import psutil
 import time
 
 import iterm2
@@ -22,15 +21,7 @@ ICON2X = "iVBORw0KGgoAAAANSUhEUgAAAB4AAAAeCAYAAAA7MK6iAAAABmJLR0QA/wD/AP+gvaeTAA
 
 
 def get_uptime():
-    p = subprocess.Popen('sysctl kern.boottime', shell=True, stdout=subprocess.PIPE,
-                         stderr=subprocess.STDOUT)
-
-    for line in p.stdout.readlines():
-        boot_time = line.decode("utf-8")
-        break
-
-    regex = re.compile('\d+')
-    boot_time = regex.findall(boot_time)[0]
+    boot_time = psutil.boot_time()
     system_uptime = int(time.time()) - int(boot_time)
 
     days = system_uptime // (24 * 3600)

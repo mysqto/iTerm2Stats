@@ -1,11 +1,27 @@
 #!/usr/bin/env python3
 import asyncio
 import json
+import psutil
 import socket
 import urllib.error
 import urllib.request
 
 import iterm2
+
+from psutil._common import bytes2human
+
+
+af_map = {
+    socket.AF_INET: 'IPv4',
+    socket.AF_INET6: 'IPv6',
+    psutil.AF_LINK: 'MAC',
+}
+
+duplex_map = {
+    psutil.NIC_DUPLEX_FULL: "full",
+    psutil.NIC_DUPLEX_HALF: "half",
+    psutil.NIC_DUPLEX_UNKNOWN: "?",
+}
 
 # The name of the iTerm2 variable to store the result
 VARIABLE = "external_ip"
@@ -63,8 +79,52 @@ async def get_external_ip():
 
 
 def local_ip():
+    unfiltered_addresses = psutil.net_if_addrs()
+    filtered_addresses = {}
+    for interface, addresses in unfiltered_addresses.items():
+        if interface.startswith('en'):
+            return addresses[0].address
+
     return socket.gethostbyname(socket.gethostname())
 
+def ifconfig():
+    import io
+    out = io.StringIO()
+    stats = psutil.net_if_stats()
+    io_counters = psutil.net_io_counters(pernic=True)
+    print("<pre>", file=out)
+    for nic, addrs in psutil.net_if_addrs().items():
+        print("%s:" % (nic), file=out)
+        if nic in stats:
+            st = stats[nic]
+            print("    stats          : ", end='', file=out)
+            print("speed=%sMB, duplex=%s, mtu=%s, up=%s" % (
+                st.speed, duplex_map[st.duplex], st.mtu,
+                "yes" if st.isup else "no"), file=out)
+        if nic in io_counters:
+            io = io_counters[nic]
+            print("    incoming       : ", end='', file=out)
+            print("bytes=%s, pkts=%s, errs=%s, drops=%s" % (
+                bytes2human(io.bytes_recv), io.packets_recv, io.errin,
+                io.dropin), file=out)
+            print("    outgoing       : ", end='', file=out)
+            print("bytes=%s, pkts=%s, errs=%s, drops=%s" % (
+                bytes2human(io.bytes_sent), io.packets_sent, io.errout,
+                io.dropout), file=out)
+        for addr in addrs:
+            print("    %-4s" % af_map.get(addr.family, addr.family), end="", file=out)
+            print(" address   : %s" % addr.address, file=out)
+            if addr.broadcast:
+                print("         broadcast : %s" % addr.broadcast, file=out)
+            if addr.netmask:
+                print("         netmask   : %s" % addr.netmask, file=out)
+            if addr.ptp:
+                print("      p2p       : %s" % addr.ptp, file=out)
+        print("", file=out)
+    print("</pre>", file=out)
+    result = out.getvalue()
+    out.close()
+    return result
 
 async def external_ip_task(app):
     while True:
@@ -98,6 +158,11 @@ async def main(connection):
         identifier="catj.moe.ip",
         icons=[icon1x, icon2x])
 
+    @iterm2.RPC
+    async def onclick(session_id):
+        session = app.get_session_by_id(session_id)
+        await component.async_open_popover(session_id, ifconfig(), iterm2.util.Size(550, 600))
+
     # This function gets called once per second.
     @iterm2.StatusBarRPC
     async def external_ip(knobs, value=iterm2.Reference("iterm2.user." + VARIABLE + "?")):
@@ -110,7 +175,7 @@ async def main(connection):
         return local_ip()
 
     # Register the component.
-    await component.async_register(connection, external_ip)
+    await component.async_register(connection, external_ip, onclick=onclick)
 
 
 # This instructs the script to run the "main" coroutine and to keep running even after it returns.

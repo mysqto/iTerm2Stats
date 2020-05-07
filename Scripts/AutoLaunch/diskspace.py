@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 
 import os
-
+import psutil
+from psutil._common import bytes2human
 import iterm2
 
 # Icons are base64-encoded PNGs. The first one is 32x34 and is used for Retina
@@ -18,23 +19,74 @@ ICON2X = "iVBORw0KGgoAAAANSUhEUgAAAB4AAAAeCAYAAAA7MK6iAAABGUlEQVRIie2WQU7DMBBFH1
          "AvgFCTzPXfv9MzgAAAAASUVORK5CYII="
 
 
-def format_bytes(num, used, suffix='B'):
-    for unit in ['', 'Ki', 'Mi', 'Gi', 'Ti', 'Pi', 'Ei', 'Zi']:
-        if abs(num) < 1024.0:
-            return "%3.1f %s%s|%2.2f%%" % (num, unit, suffix, used)
-        num /= 1024.0
-    return "%.1f %s%s|%2.2f%%" % (num, 'Yi', suffix, used)
-
-
 def get_free_space(disk='/'):
     statvfs = os.statvfs(disk)
     total = statvfs.f_blocks * statvfs.f_frsize
     free = statvfs.f_frsize * statvfs.f_bavail
     used = ((total - free) / total) * 100.00
-    return format_bytes(free, used)
+    return "{:>5}|{:.2f}%".format(bytes2human(free), used)
+
+def df():
+    disk_usage = '<style>td    {padding: 6px;}</style>'
+    disk_usage += '<table>'
+    table_headers = ["Device", "Total", "Used", "Free", "Use ", "Type", "Mount"]
+
+    disk_usage += '  <tr>'
+    for head in table_headers:
+        disk_usage += '    <th>{}</th>'.format(head)
+    disk_usage += '  </tr>'
+
+    for part in psutil.disk_partitions(all=False):
+        if os.name == 'nt':
+            if 'cdrom' in part.opts or part.fstype == '':
+                # skip cd-rom drives with no disk in it; they may raise
+                # ENOENT, pop-up a Windows GUI error for a non-ready
+                # partition or just hang.
+                continue
+
+        usage = psutil.disk_usage(part.mountpoint)
+        disk_usage += '  <tr>'
+        disk_usage += '    <td>{}</td>'.format(part.device)
+        disk_usage += '    <td>{}</td>'.format(bytes2human(usage.total))
+        disk_usage += '    <td>{}</td>'.format(bytes2human(usage.used))
+        disk_usage += '    <td>{}</td>'.format(bytes2human(usage.free))
+        disk_usage += '    <td>{:.2f}%</td>'.format(usage.percent)
+        disk_usage += '    <td>{}</td>'.format(part.fstype)
+        disk_usage += '    <td>{}</td>'.format(part.mountpoint)
+        disk_usage += '  </tr>'
+
+    disk_usage += '</table>'
+
+    print(disk_usage)
+    return disk_usage
+
+
+
+    templ = "%-17s %8s %8s %8s %5s%% %9s  %s\n"
+    disk_usage += templ % ("Device", "Total", "Used", "Free", "Use ", "Type",
+                   "Mount")
+    for part in psutil.disk_partitions(all=False):
+        if os.name == 'nt':
+            if 'cdrom' in part.opts or part.fstype == '':
+                # skip cd-rom drives with no disk in it; they may raise
+                # ENOENT, pop-up a Windows GUI error for a non-ready
+                # partition or just hang.
+                continue
+        usage = psutil.disk_usage(part.mountpoint)
+        disk_usage += templ % (
+            part.device,
+            bytes2human(usage.total),
+            bytes2human(usage.used),
+            bytes2human(usage.free),
+            int(usage.percent),
+            part.fstype,
+            part.mountpoint)
+    print(disk_usage)
+    return disk_usage
 
 
 async def main(connection):
+    app = await iterm2.async_get_app(connection)
     icon1x = iterm2.StatusBarComponent.Icon(1, ICON1X)
     icon2x = iterm2.StatusBarComponent.Icon(2, ICON2X)
 
@@ -52,8 +104,13 @@ async def main(connection):
     async def diskspace(knobs):
         return str(get_free_space())
 
+    @iterm2.RPC
+    async def onclick(session_id):
+        session = app.get_session_by_id(session_id)
+        await component.async_open_popover(session_id, df(), iterm2.util.Size(600, 300))
+
     # Register the component.
-    await component.async_register(connection, diskspace)
+    await component.async_register(connection, diskspace, onclick=onclick)
 
 
 # This instructs the script to run the "main" coroutine and to keep running even after it returns.
