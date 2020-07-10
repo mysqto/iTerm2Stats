@@ -59,8 +59,7 @@ async def poll(app):
     sets the app-scope 'user.{DISK_IO_VARIABLE}' variable."""
     while True:
         disk_io = await get_disk_io(1)
-        print(disk_io)
-
+        
         if disk_io:
             await app.async_set_variable("user." + DISK_IO_VARIABLE, disk_io)
             await asyncio.sleep(1)

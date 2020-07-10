@@ -67,7 +67,6 @@ async def updater(app, type='current'):
             variable_key = FORECAST_VARIABLE
 
         weather = await get_weather(weather_url, city)
-        print(weather)
 
         if weather:
             if type == 'current':

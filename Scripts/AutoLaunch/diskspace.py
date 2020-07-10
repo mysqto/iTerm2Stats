@@ -57,7 +57,6 @@ def df():
 
     disk_usage += '</table>'
 
-    print(disk_usage)
     return disk_usage
 
 
@@ -81,7 +80,6 @@ def df():
             int(usage.percent),
             part.fstype,
             part.mountpoint)
-    print(disk_usage)
     return disk_usage
 
 
