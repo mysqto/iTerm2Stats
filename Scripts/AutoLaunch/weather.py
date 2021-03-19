@@ -76,10 +76,12 @@ async def updater(app, type='current'):
         else:
             await asyncio.sleep(1)
 
+
 async def format_weather(app):
     text = await app.async_get_variable("user." + FORECAST_VARIABLE)
     style = "<style>pre {font-family: Menlo,monospace; font-size: 12}</style>"
     return style + '<pre>' + text + '</pre>' if text is not None else None
+
 
 async def main(connection):
     app = await iterm2.async_get_app(connection)

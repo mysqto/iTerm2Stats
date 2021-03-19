@@ -131,3 +131,6 @@ dmypy.json
 # IDE related
 .vscode
 .idea
+
+# OS related
+.DS_Store
