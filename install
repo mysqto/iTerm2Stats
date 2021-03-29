@@ -128,7 +128,7 @@ script_dir=$(dirname "$_self")
 
 [[ ! -d "$iterm2_config_base" ]] && echo_info "creating iTerm2 configuration directory" && mkdir -p "$iterm2_config_base"
 [[ ! -d "$iterm2_config_target" ]] && echo_info "creating iTerm2 configuration target directory" && mkdir -p "$iterm2_config_target"
-_symlink "$iterm2_config_target" "iterm2_config_dir"
+_symlink "$iterm2_config_target" "$iterm2_config_dir"
 
 iterm2env_installed_version=$(head -n1 "$iterm2env/iterm2env-metadata.json" 2>/dev/null | cut -d'"' -f4)
 iterm2env_url=$(curl -s "$iterm2env_feed" | grep -Eo "https://.*.zip" | head -n1)
