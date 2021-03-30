@@ -155,7 +155,7 @@ for version in "$iterm2env"/versions/*; do
       ;;
     esac
   done
-  "$version/bin/pip" install -r "$script_dir/requirements.txt"
+  "$version/bin/pip" install -U -r "$script_dir/requirements.txt"
 done
 
 [[ ! -d "$script_target" ]] && echo_info "creating script directory: $script_target" && mkdir -p "$script_target"

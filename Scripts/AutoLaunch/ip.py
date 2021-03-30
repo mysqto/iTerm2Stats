@@ -112,14 +112,16 @@ def ifconfig():
                 bytes2human(io.bytes_sent), io.packets_sent, io.errout,
                 io.dropout), file=out)
         for addr in addrs:
+            if not addr.address or addr.address.startswith('fe80::'):
+                continue
             print("    %-4s" % af_map.get(addr.family, addr.family), end="", file=out)
             print(" address   : %s" % addr.address, file=out)
             if addr.broadcast:
-                print("         broadcast : %s" % addr.broadcast, file=out)
+                print("       broadcast   : %s" % addr.broadcast, file=out)
             if addr.netmask:
                 print("         netmask   : %s" % addr.netmask, file=out)
             if addr.ptp:
-                print("      p2p       : %s" % addr.ptp, file=out)
+                print("             p2p   : %s" % addr.ptp, file=out)
         print("", file=out)
     print("</pre>", file=out)
     result = out.getvalue()

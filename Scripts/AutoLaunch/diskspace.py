@@ -65,12 +65,6 @@ def df():
     disk_usage += templ % ("Device", "Total", "Used", "Free", "Use ", "Type",
                    "Mount")
     for part in psutil.disk_partitions(all=False):
-        if os.name == 'nt':
-            if 'cdrom' in part.opts or part.fstype == '':
-                # skip cd-rom drives with no disk in it; they may raise
-                # ENOENT, pop-up a Windows GUI error for a non-ready
-                # partition or just hang.
-                continue
         usage = psutil.disk_usage(part.mountpoint)
         disk_usage += templ % (
             part.device,
@@ -105,7 +99,7 @@ async def main(connection):
     @iterm2.RPC
     async def onclick(session_id):
         session = app.get_session_by_id(session_id)
-        await component.async_open_popover(session_id, df(), iterm2.util.Size(600, 300))
+        await component.async_open_popover(session_id, df(), iterm2.util.Size(660, 320))
 
     # Register the component.
     await component.async_register(connection, diskspace, onclick=onclick)
