@@ -54,25 +54,7 @@ function _unzip() {
 }
 
 function _realpath() {
-  target=$1
-
-  dir=$(dirname "$target")
-  cd "$dir" || exit 255
-  target=$(basename "$target")
-
-  # Iterate down a (possible) chain of symlinks
-  while [ -L "$target" ]; do
-    target=$(readlink "$target")
-    dir=$(dirname "$target")
-    cd "$dir" || exit 255
-    target=$(basename "$target")
-  done
-
-  # Compute the canonicalized name by finding the physical path
-  # for the directory we're in and appending the target file.
-  realdir=$(pwd -P)
-  result="$realdir/$target"
-  echo "$result"
+     python -c "import os; print(os.path.realpath('$1'))"
 }
 
 function _symlink() {
@@ -119,7 +101,7 @@ done
 
 iterm2_config_base="$HOME/.config/iterm2"
 iterm2_config_dir="$HOME/.config/iterm2/AppSupport"
-iterm2_config_target="$HOME/Library/Application\ Support/iTerm2"
+iterm2_config_target="$HOME/Library/Application Support/iTerm2"
 iterm2env_feed="https://iterm2.com/downloads/pyenv/${beta}manifest.json"
 iterm2env="$iterm2_config_dir/iterm2env"
 script_target="$iterm2_config_dir/Scripts/AutoLaunch"
