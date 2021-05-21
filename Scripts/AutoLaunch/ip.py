@@ -10,7 +10,6 @@ import iterm2
 
 from psutil._common import bytes2human
 
-
 af_map = {
     socket.AF_INET: 'IPv4',
     socket.AF_INET6: 'IPv6',
@@ -25,12 +24,12 @@ duplex_map = {
 
 # The name of the iTerm2 variable to store the result
 VARIABLE = "external_ip"
-URL = "https://ifconfig.co/json"
 USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_4) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.1" \
              " Safari/605.1.15"
 
-service_url = None
+service_url = "https://ipinfo.io/json"
 update_interval = 120
+country_keys = ["country", "country_iso"]
 
 # Icons are base64-encoded PNGs. The first one is 32x34 and is used for Retina
 # displays. The second is 16x32 and is used for non-Retina displays.
@@ -64,7 +63,7 @@ def emoji(country):
 
 async def get_external_ip():
     try:
-        request = urllib.request.Request(URL, data=None,
+        request = urllib.request.Request(service_url, data=None,
                                          headers={
                                              'User-Agent': USER_AGENT
                                          }
@@ -73,19 +72,25 @@ async def get_external_ip():
         with urllib.request.urlopen(request) as response:
             resp = response.read().decode("utf-8").strip()
             obj = json.loads(resp)
-            return '{}|{}'.format(obj["ip"], emoji(obj["country_iso"]))
+            ip = obj["ip"]
+            country = '🌍'
+            for country_key in country_keys:
+                if country_key in obj and len(obj[country_key]) == 2:
+                    country = obj[country_key]
+                    break
+            return '{}|{}'.format(ip, emoji(country))
     except (urllib.error.HTTPError, urllib.error.URLError, TypeError):
         return '{}|{}'.format(local_ip(), '📶')
 
 
 def local_ip():
     unfiltered_addresses = psutil.net_if_addrs()
-    filtered_addresses = {}
     for interface, addresses in unfiltered_addresses.items():
         if interface.startswith('en'):
             return addresses[0].address
 
     return socket.gethostbyname(socket.gethostname())
+
 
 def ifconfig():
     import io
@@ -128,8 +133,11 @@ def ifconfig():
     out.close()
     return result
 
+
 async def external_ip_task(app):
     while True:
+        if not service_url:
+            await asyncio.sleep(1)
         global update_interval
         text = await get_external_ip()
         if text:
@@ -148,7 +156,10 @@ async def main(connection):
     icon2x = iterm2.StatusBarComponent.Icon(2, ICON2X)
 
     update_interval_knob = "ip_update_interval"
-    knobs = [iterm2.StringKnob("Update Interval", "60", "60", update_interval_knob)]
+    service_url_knob = "ip_provider_url"
+    knobs = [iterm2.StringKnob("Update Interval", "60", "60", update_interval_knob),
+             iterm2.StringKnob("Provider URL", "https://ifconfig.co/json", "https://ifconfig.co/json",
+                               service_url_knob)]
 
     # Register the status bar component.
     component = iterm2.StatusBarComponent(
@@ -169,8 +180,11 @@ async def main(connection):
     @iterm2.StatusBarRPC
     async def external_ip(knobs, value=iterm2.Reference("iterm2.user." + VARIABLE + "?")):
         global update_interval
+        global service_url
         if update_interval_knob in knobs and knobs[update_interval_knob]:
             update_interval = int(knobs[update_interval_knob])
+        if service_url_knob in knobs and knobs[service_url_knob]:
+            service_url = knobs[service_url_knob]
         """This function returns the value to show in a status bar."""
         if value:
             return value
