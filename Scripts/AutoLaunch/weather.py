@@ -65,8 +65,10 @@ async def updater(app, type='current'):
         if type == 'forecast':
             weather_url = FORECAST_URL
             variable_key = FORECAST_VARIABLE
-
-        weather = await get_weather(weather_url, city)
+        try:
+            weather = await get_weather(weather_url, city)
+        except:
+            await asyncio.sleep(1)
 
         if weather:
             if type == 'current':
@@ -74,11 +76,15 @@ async def updater(app, type='current'):
             await app.async_set_variable("user." + variable_key, weather)
             await asyncio.sleep(update_interval)
         else:
-            await asyncio.sleep(1)
+            await asyncio.sleep(5)
 
 
 async def format_weather(app):
-    text = await app.async_get_variable("user." + FORECAST_VARIABLE)
+    text = ""
+    try:
+        text = await app.async_get_variable("user." + FORECAST_VARIABLE)
+    except:
+        text = "Loading"
     style = "<style>pre {font-family: Menlo,monospace; font-size: 12}</style>"
     return style + '<pre>' + text + '</pre>' if text is not None else None
 
@@ -123,7 +129,11 @@ async def main(connection):
     @iterm2.RPC
     async def onclick(session_id):
         session = app.get_session_by_id(session_id)
-        forecast_weather = await format_weather(app)
+        forecast_weather = "Loading"
+        try:
+            forecast_weather = await format_weather(app)
+        except:
+            forecast_weather = "Loading"
         if forecast_weather is not None:
             await component.async_open_popover(session_id, forecast_weather, iterm2.util.Size(480, 520))
 

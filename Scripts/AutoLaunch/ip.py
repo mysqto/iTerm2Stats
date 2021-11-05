@@ -139,7 +139,11 @@ async def external_ip_task(app):
         if not service_url:
             await asyncio.sleep(1)
         global update_interval
-        text = await get_external_ip()
+        text = "Loading"
+        try:
+            text = await get_external_ip()
+        except:
+            text = "Loading"
         if text:
             await app.async_set_variable("user." + VARIABLE, text)
             await asyncio.sleep(update_interval)
