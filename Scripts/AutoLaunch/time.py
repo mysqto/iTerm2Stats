@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 
+from datetime import datetime
 import os
 import time
-
 import iterm2
+import pytz
 
 ICON1X = "iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAA/klEQVQ4jc3SvS5FURAF4M8NDYmIn5aEZ6ChQaFBrxD3JRRqbyEqxRVar" \
          "mhJROjFC4jCT8JtEAU5yRyZyBGnUJhkZe89s9aafWYffxUDaOEjsFThu5zqO+jPxb1UPMIoprAemMQYjhOvlQ06kdzCLM4TscQZ5rAd50" \
@@ -620,16 +621,56 @@ timezones = {
 }
 
 
+world_zones = {
+    'GMT': 'UTC',
+    'Europe/Dublin': 'Dublin',
+    'Europe/London': 'London',
+    'Europe/Berlin': 'Berlin',
+    'Europe/Paris': 'Paris',
+    'Europe/Amsterdam': 'Amsterdam',
+    'Europe/Moscow': 'Moscow',
+    'Asia/Dubai': 'Dubai',
+    'Asia/Tehran': 'Tehran',
+    'Asia/Shanghai': 'Shanghai',
+    'Asia/Tokyo': 'Tokyo',
+    'Asia/Seoul': 'Seoul',
+    'Asia/Bangkok': 'Bangkok',
+    'America/New_York': 'New York',
+    'America/Los_Angeles': 'Los Angeles',
+}
+
+def zone_flag(zone):
+    for key, value in timezones.items():
+        if zone.endswith(key):
+            return value
+
+    return ''
+
+def  world_time(zone, city):
+    tz = pytz.timezone(zone)
+    zoned_now = datetime.now(tz)
+    return "{} {}{}".format(zoned_now.strftime('%m-%d %H:%M:%S'), zone_flag(zone), city)
+
+
 def timezone():
     global timezones
     local_zone = os.path.realpath('/etc/localtime')
-    for key, value in timezones.items():
-        if local_zone.endswith(key):
-            return value
+    return zone_flag(local_zone)
 
 
 def local_time():
     return "{} {}".format(time.strftime('%m-%d %H:%M:%S'), timezone())
+
+def get_world_time():
+    import io
+    out = io.StringIO()
+    print("<pre>", file=out)
+    for zone, city in world_zones.items():
+        print(world_time(zone, city), file=out)
+    print("</pre>", file=out)
+    result = out.getvalue()
+    out.close()
+    return result
 
 
 async def main(connection):
@@ -648,9 +689,19 @@ async def main(connection):
     @iterm2.StatusBarRPC
     async def localtime(knobs):
         return local_time()
+    
+    @iterm2.RPC
+    async def onclick(session_id):
+        word_time = "Loading"
+        try:
+            word_time = get_world_time()
+        except:
+            word_time = "Loading"
+        if word_time is not None:
+            await component.async_open_popover(session_id, word_time, iterm2.util.Size(256, 340))
 
     # Register the component.
-    await component.async_register(connection, localtime)
+    await component.async_register(connection, localtime, onclick=onclick)
 
 
 iterm2.run_forever(main)

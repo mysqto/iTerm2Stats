@@ -1,3 +1,5 @@
 iterm2
 pip
 psutil
+pytz
+
