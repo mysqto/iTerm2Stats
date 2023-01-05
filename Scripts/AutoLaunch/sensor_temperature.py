@@ -29,10 +29,10 @@ def get_sensor_temperature():
     # add /usr/local/bin to env
     env["PATH"] = "/usr/local/bin:" + env["PATH"]
 
-    if not tool_installed("osx-cpu-temp", env["PATH"]):
-        return "osx-cpu-temp not installed, run brew "
+    if not tool_installed("coretemp", env["PATH"]):
+        return "coretemp not installed, run brew tap mysqto/coretemp && brew install coretemp"
 
-    p = subprocess.Popen('osx-cpu-temp', shell=True, env=env, stdout=subprocess.PIPE,
+    p = subprocess.Popen('coretemp -u -c 0', shell=True, env=env, stdout=subprocess.PIPE,
                          stderr=subprocess.STDOUT)
 
     for line in p.stdout.readlines():

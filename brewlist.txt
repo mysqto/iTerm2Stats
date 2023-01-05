@@ -1,1 +1,1 @@
-osx-cpu-temp
+coretemp

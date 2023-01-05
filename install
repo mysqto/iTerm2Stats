@@ -146,6 +146,12 @@ for file in "$script_dir"/Scripts/AutoLaunch/*.py; do
   _symlink "$file" "$script_target"
 done
 
+[[ -f "$script_dir/brewtaps.txt" ]] && {
+  while read -r line; do
+    [[ -z "$line" ]] || brew tap "$line"
+  done <"$script_dir/brewtaps.txt"
+}
+
 while read -r line; do
   [[ -z "$line" ]] || brew install "$line"
 done <"$script_dir/brewlist.txt"
