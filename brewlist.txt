@@ -1,1 +1,1 @@
-coretemp
+smctemp
