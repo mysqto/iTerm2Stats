@@ -661,19 +661,101 @@ def timezone():
 def local_time():
     return "{} {}".format(time.strftime('%m-%d %H:%M:%S'), timezone())
 
-def get_world_time():
+def get_world_time(text_color="inherit", bg_color="inherit"):
     import io
     out = io.StringIO()
-    print("<pre>", file=out)
+    
+    # Enhanced styling for beautiful layout
+    style = f"""
+    <style>
+        .time-container {{
+            font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', 'Source Code Pro', monospace;
+            color: {text_color} !important;
+            background-color: {bg_color} !important;
+            padding: 0;
+            margin: 0;
+        }}
+        .time-header {{
+            font-size: 18px;
+            font-weight: bold;
+            text-align: center;
+            margin-bottom: 15px;
+            color: {text_color} !important;
+            border-bottom: 2px solid {text_color};
+            padding-bottom: 8px;
+        }}
+        .time-grid {{
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 8px;
+        }}
+        .time-row {{
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 12px;
+            background-color: rgba(255, 255, 255, 0.05);
+            border-radius: 6px;
+            border-left: 3px solid {text_color};
+        }}
+        .time-city {{
+            font-weight: 600;
+            font-size: 14px;
+            color: {text_color} !important;
+            min-width: 120px;
+        }}
+        .time-value {{
+            font-family: 'SF Mono', monospace;
+            font-size: 13px;
+            color: {text_color} !important;
+            text-align: right;
+        }}
+        .local-time {{
+            background-color: rgba(255, 255, 255, 0.1) !important;
+            border-left-color: #007AFF !important;
+        }}
+    </style>
+    """
+    
+    print(style, file=out)
+    print('<div class="time-container">', file=out)
+    print('<div class="time-header">🌍 World Clock</div>', file=out)
+    print('<div class="time-grid">', file=out)
+    
+    # Add local time first with special styling
+    local_zone = os.path.realpath('/etc/localtime')
+    local_city = "Local Time"
+    if 'zoneinfo' in local_zone:
+        zone_part = local_zone.split('zoneinfo/')[-1]
+        for zone, city in world_zones.items():
+            if zone_part.endswith(zone):
+                local_city = f"📍 {city} (Local)"
+                break
+    
+    local_time_str = local_time()
+    print(f'<div class="time-row local-time">', file=out)
+    print(f'  <span class="time-city">{local_city}</span>', file=out)
+    print(f'  <span class="time-value">{local_time_str}</span>', file=out)
+    print('</div>', file=out)
+    
+    # Add world times
     for zone, city in world_zones.items():
-        print(world_time(zone, city), file=out)
-    print("</pre>", file=out)
+        time_str = world_time(zone, city)
+        print(f'<div class="time-row">', file=out)
+        print(f'  <span class="time-city">{city}</span>', file=out)
+        print(f'  <span class="time-value">{time_str}</span>', file=out)
+        print('</div>', file=out)
+    
+    print('</div>', file=out)  # Close time-grid
+    print('</div>', file=out)  # Close time-container
+    
     result = out.getvalue()
     out.close()
     return result
 
 
 async def main(connection):
+    app = await iterm2.async_get_app(connection)
     icon1x = iterm2.StatusBarComponent.Icon(1, ICON1X)
     icon2x = iterm2.StatusBarComponent.Icon(2, ICON2X)
 
@@ -692,13 +774,61 @@ async def main(connection):
     
     @iterm2.RPC
     async def onclick(session_id):
-        word_time = "Loading"
+        session = app.get_session_by_id(session_id)
+        
+        # Get the session's profile to access background color
+        profile = await session.async_get_profile()
+        background_color = profile.background_color
+        
+        # Convert background color to CSS format
+        bg_color_css = f"rgba({int(background_color.red)}, {int(background_color.green)}, {int(background_color.blue)}, {background_color.alpha})"
+        
+        # Calculate opposite text color (simple inversion)
+        text_red = 255 - int(background_color.red)
+        text_green = 255 - int(background_color.green)
+        text_blue = 255 - int(background_color.blue)
+        text_color_css = f"rgb({text_red}, {text_green}, {text_blue})"
+
+        print(f"Time - Background color CSS: {bg_color_css}")
+        print(f"Time - Text color CSS: {text_color_css}")
+        
+        world_time_content = "Loading"
         try:
-            word_time = get_world_time()
+            world_time_content = get_world_time(text_color_css, bg_color_css)
         except:
-            word_time = "Loading"
-        if word_time is not None:
-            await component.async_open_popover(session_id, word_time, iterm2.util.Size(256, 340))
+            world_time_content = "Loading"
+            
+        if world_time_content is not None:
+            # Create HTML content with matching background color and styling
+            html_content = f"""
+            <html style="margin: 0; padding: 0; background-color: {bg_color_css}; width: 100%; height: 100%; border-radius: 8px; overflow: hidden;">
+            <head>
+                <style>
+                    html, body {{
+                        margin: 0 !important;
+                        padding: 10px !important;
+                        background-color: {bg_color_css} !important;
+                        color: {text_color_css} !important;
+                        border: none !important;
+                        outline: none !important;
+                        width: 100% !important;
+                        height: 100% !important;
+                        border-radius: 8px !important;
+                        overflow: hidden !important;
+                        font-family: monospace;
+                    }}
+                    * {{
+                        box-sizing: border-box !important;
+                        color: {text_color_css} !important;
+                    }}
+                </style>
+            </head>
+            <body style="background-color: {bg_color_css}; color: {text_color_css}; border-radius: 8px; margin: 0; padding: 10px;">
+                {world_time_content}
+            </body>
+            </html>
+            """
+            await component.async_open_popover(session_id, html_content, iterm2.util.Size(380, 420))
 
     # Register the component.
     await component.async_register(connection, localtime, onclick=onclick)

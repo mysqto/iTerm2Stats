@@ -26,8 +26,8 @@ def get_free_space(disk='/'):
     used = ((total - free) / total) * 100.00
     return "{:>5}|{:.2f}%".format(bytes2human(free), used)
 
-def df():
-    disk_usage = '<style>td    {padding: 6px;}</style>'
+def df(text_color="inherit"):
+    disk_usage = f'<style>td {{padding: 6px; color: {text_color};}} th {{color: {text_color};}}</style>'
     disk_usage += '<table>'
     table_headers = ["Device", "Total", "Used", "Free", "Use ", "Type", "Mount"]
 
@@ -44,7 +44,32 @@ def df():
                 # partition or just hang.
                 continue
 
-        usage = psutil.disk_usage(part.mountpoint)
+        # Filter to show only physical volumes (skip system/virtual volumes)
+        # Skip system volumes that are typically not user-relevant
+        skip_mountpoints = [
+            '/System/Volumes/VM',
+            '/System/Volumes/Preboot', 
+            '/System/Volumes/Update',
+            '/System/Volumes/xarts',
+            '/System/Volumes/iSCPreboot',
+            '/System/Volumes/Hardware',
+            '/System/Volumes/Data',
+            '/private/var/vm'
+        ]
+        
+        # Skip if it's a system volume
+        if any(part.mountpoint.startswith(skip) for skip in skip_mountpoints):
+            continue
+            
+        # Skip very small volumes (likely system/recovery volumes)
+        try:
+            usage = psutil.disk_usage(part.mountpoint)
+            # Skip volumes smaller than 1GB (likely system volumes)
+            if usage.total < 1024 * 1024 * 1024:
+                continue
+        except (PermissionError, OSError):
+            continue
+
         disk_usage += '  <tr>'
         disk_usage += '    <td>{}</td>'.format(part.device)
         disk_usage += '    <td>{}</td>'.format(bytes2human(usage.total))
@@ -99,7 +124,65 @@ async def main(connection):
     @iterm2.RPC
     async def onclick(session_id):
         session = app.get_session_by_id(session_id)
-        await component.async_open_popover(session_id, df(), iterm2.util.Size(660, 320))
+        # Get the session's profile to access background color
+        profile = await session.async_get_profile()
+        background_color = profile.background_color
+        
+        # Convert background color to CSS format
+        bg_color_css = f"rgba({int(background_color.red)}, {int(background_color.green)}, {int(background_color.blue)}, {background_color.alpha})"
+        
+        # Calculate opposite text color (simple inversion)
+        text_red = 255 - int(background_color.red)
+        text_green = 255 - int(background_color.green)
+        text_blue = 255 - int(background_color.blue)
+        text_color_css = f"rgb({text_red}, {text_green}, {text_blue})"
+
+        print(f"Background color CSS: {bg_color_css}")
+        print(f"Text color CSS: {text_color_css}")
+
+        # Create HTML content with matching background color
+        html_content = f"""
+        <html style="margin: 0; padding: 0; background-color: {bg_color_css}; width: 100%; height: 100%; border-radius: 8px; overflow: hidden;">
+        <head>
+            <style>
+                html, body {{
+                    margin: 0 !important;
+                    padding: 10px !important;
+                    background-color: {bg_color_css} !important;
+                    color: {text_color_css} !important;
+                    border: none !important;
+                    outline: none !important;
+                    width: 100% !important;
+                    height: 100% !important;
+                    border-radius: 8px !important;
+                    overflow: hidden !important;
+                    font-family: monospace;
+                }}
+                table {{
+                    width: 100% !important;
+                    background-color: transparent !important;
+                    color: {text_color_css} !important;
+                    border-collapse: collapse;
+                }}
+                td, th {{
+                    padding: 6px !important;
+                    background-color: transparent !important;
+                    color: {text_color_css} !important;
+                    border: none !important;
+                }}
+                * {{
+                    box-sizing: border-box !important;
+                    color: {text_color_css} !important;
+                }}
+            </style>
+        </head>
+        <body style="background-color: {bg_color_css}; color: {text_color_css}; border-radius: 8px; margin: 0; padding: 10px;">
+            {df(text_color_css)}
+        </body>
+        </html>
+        """
+        
+        await component.async_open_popover(session_id, html_content, iterm2.util.Size(680, 340))
 
     # Register the component.
     await component.async_register(connection, diskspace, onclick=onclick)
