@@ -1,1 +1,1 @@
-mysqto/coretemp
+mysqto/brew
