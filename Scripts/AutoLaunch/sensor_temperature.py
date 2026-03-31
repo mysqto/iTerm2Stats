@@ -23,21 +23,38 @@ ICON2X = "iVBORw0KGgoAAAANSUhEUgAAAB4AAAAeCAYAAAA7MK6iAAAABmJLR0QA/wD/AP+gvaeTAA
 def tool_installed(cmd, path=os.environ['PATH']):
     return which(cmd, path=path) is not None
 
+last_smc_temp = None
 
 def get_sensor_temperature():
     env = os.environ.copy()
-    # add /usr/local/bin to env
-    env["PATH"] = "/usr/local/bin:" + env["PATH"]
+    pathes = ['/opt/homebrew/bin', '/usr/local/bin']
+    for bin_path in pathes:
+        if os.path.isdir(bin_path):
+            # prepend to PATH
+            env["PATH"] = bin_path + ":" + env["PATH"]
 
-    if not tool_installed("coretemp", env["PATH"]):
-        return "coretemp not installed, run brew tap mysqto/brew && brew install coretemp"
+    cmd="smctemp"
 
-    p = subprocess.Popen('coretemp -u -c 0', shell=True, env=env, stdout=subprocess.PIPE,
-                         stderr=subprocess.STDOUT)
+    if not tool_installed(cmd, env["PATH"]):
+        tap = "narugit/tap"
+        return f"{cmd} not installed, run brew tap {tap} && brew install {cmd}"
+    
+    global last_smc_temp
+    full_cmd = f"{cmd} -i25 -n10 -f -c"
 
-    for line in p.stdout.readlines():
-        smc_temp = line.decode("utf-8").strip()
-        break
+    try:
+        p = subprocess.Popen(full_cmd, shell=True, env=env, stdout=subprocess.PIPE,
+                            stderr=subprocess.STDOUT)
+
+        for line in p.stdout.readlines():
+            smc_temp = line.decode("utf-8").strip()
+            break
+        smc_temp +='°C'
+        last_smc_temp = smc_temp
+    except Exception as e:
+        if last_smc_temp is not None:
+            return last_smc_temp
+        smc_temp = f"N/A"
     return smc_temp
 
 

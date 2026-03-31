@@ -79,13 +79,26 @@ async def updater(app, type='current'):
             await asyncio.sleep(5)
 
 
-async def format_weather(app):
+async def format_weather(app, bg_color_css, text_color_css):
     text = ""
     try:
         text = await app.async_get_variable("user." + FORECAST_VARIABLE)
     except:
         text = "Loading"
-    style = "<style>pre {font-family: Menlo,monospace; font-size: 12}</style>"
+    
+    style = f"""
+    <style>
+        pre {{
+            font-family: Menlo,monospace; 
+            font-size: 12px;
+            color: {text_color_css} !important;
+            background-color: {bg_color_css} !important;
+            margin: 0;
+            padding: 0;
+            white-space: pre-wrap;
+        }}
+    </style>
+    """
     return style + '<pre>' + text + '</pre>' if text is not None else None
 
 
@@ -129,13 +142,60 @@ async def main(connection):
     @iterm2.RPC
     async def onclick(session_id):
         session = app.get_session_by_id(session_id)
+        
+        # Get the session's profile to access background color
+        profile = await session.async_get_profile()
+        background_color = profile.background_color
+        
+        # Convert background color to CSS format
+        bg_color_css = f"rgba({int(background_color.red)}, {int(background_color.green)}, {int(background_color.blue)}, {background_color.alpha})"
+        
+        # Calculate opposite text color (simple inversion)
+        text_red = 255 - int(background_color.red)
+        text_green = 255 - int(background_color.green)
+        text_blue = 255 - int(background_color.blue)
+        text_color_css = f"rgb({text_red}, {text_green}, {text_blue})"
+
+        print(f"Weather - Background color CSS: {bg_color_css}")
+        print(f"Weather - Text color CSS: {text_color_css}")
+        
         forecast_weather = "Loading"
         try:
-            forecast_weather = await format_weather(app)
+            forecast_weather_content = await format_weather(app, bg_color_css, text_color_css)
         except:
-            forecast_weather = "Loading"
-        if forecast_weather is not None:
-            await component.async_open_popover(session_id, forecast_weather, iterm2.util.Size(480, 520))
+            forecast_weather_content = "Loading"
+            
+        if forecast_weather_content is not None:
+            # Create HTML content with matching background color and styling
+            html_content = f"""
+            <html style="margin: 0; padding: 0; background-color: {bg_color_css}; width: 100%; height: 100%; border-radius: 8px; overflow: hidden;">
+            <head>
+                <style>
+                    html, body {{
+                        margin: 0 !important;
+                        padding: 10px !important;
+                        background-color: {bg_color_css} !important;
+                        color: {text_color_css} !important;
+                        border: none !important;
+                        outline: none !important;
+                        width: 100% !important;
+                        height: 100% !important;
+                        border-radius: 8px !important;
+                        overflow: hidden !important;
+                        font-family: monospace;
+                    }}
+                    * {{
+                        box-sizing: border-box !important;
+                        color: {text_color_css} !important;
+                    }}
+                </style>
+            </head>
+            <body style="background-color: {bg_color_css}; color: {text_color_css}; border-radius: 8px; margin: 0; padding: 10px;">
+                {forecast_weather_content}
+            </body>
+            </html>
+            """
+            await component.async_open_popover(session_id, html_content, iterm2.util.Size(500, 540))
 
     # Register the component.
     await component.async_register(connection, weather, onclick=onclick)
