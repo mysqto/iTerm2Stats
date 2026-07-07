@@ -37,7 +37,7 @@ def get_sensor_temperature():
 
     if not tool_installed(cmd, env["PATH"]):
         tap = "narugit/tap"
-        return f"{cmd} not installed, run brew tap {tap} && brew install {cmd}"
+        return f"{cmd} not installed, run brew tap {tap} && brew trust --tap {tap} && brew install {cmd}"
     
     global last_smc_temp
     full_cmd = f"{cmd} -i25 -n10 -f -c"

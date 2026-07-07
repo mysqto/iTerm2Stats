@@ -148,7 +148,7 @@ done
 
 [[ -f "$script_dir/brewtaps.txt" ]] && {
   while read -r line; do
-    [[ -z "$line" ]] || brew tap "$line"
+    [[ -z "$line" ]] || { brew tap "$line" && brew trust --tap "$line"; }
   done <"$script_dir/brewtaps.txt"
 }
 
